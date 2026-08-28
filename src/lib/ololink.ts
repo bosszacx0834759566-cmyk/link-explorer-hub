@@ -8,7 +8,7 @@ export type ScenarioId = 'clear' | 'cloud' | 'rain' | 'storm';
 
 export type AssetKind = 'satellite' | 'haps' | 'drone' | 'ground' | 'customer';
 
-export type Tech = 'OPTICAL' | 'FSO' | 'MICROWAVE' | 'RF';
+export type Tech = 'OPTICAL' | 'FSO' | 'MICROWAVE' | 'RF' | 'FIBER';
 
 export type Health = 'NOMINAL' | 'DEGRADED' | 'OFFLINE';
 
@@ -47,31 +47,42 @@ export interface WeatherCell {
 
 export const TECH_META: Record<
   Tech,
-  { label: string; color: string; desc: string; family: 'optical' | 'radio' }
+  { label: string; short: string; color: string; desc: string; family: 'optical' | 'radio' | 'fiber' }
 > = {
   OPTICAL: {
     label: 'Optical Laser',
+    short: 'Optical',
     color: '#38bdf8',
     desc: 'Coherent laser downlink, highest capacity, weather sensitive',
     family: 'optical',
   },
   FSO: {
     label: 'Free-Space Optical',
+    short: 'FSO',
     color: '#22d3ee',
     desc: 'Directed optical through atmosphere, cloud sensitive',
     family: 'optical',
   },
   MICROWAVE: {
     label: 'Microwave',
+    short: 'Microwave',
     color: '#fbbf24',
     desc: 'Weather-resilient microwave relay, moderate capacity',
     family: 'radio',
   },
   RF: {
     label: 'Radio Frequency',
+    short: 'RF',
     color: '#f59e0b',
     desc: 'Adaptive RF backbone, all-weather, lower capacity',
     family: 'radio',
+  },
+  FIBER: {
+    label: 'Terrestrial Fiber',
+    short: 'Fiber',
+    color: '#34d399',
+    desc: 'Buried fiber handoff into the customer network, weather independent',
+    family: 'fiber',
   },
 };
 
@@ -142,9 +153,9 @@ export const SEGMENTS: Segment[] = [
   seg('s-drna-gsth', 'drn-a', 'gs-th', 'RF'),
   seg('s-drnb-gssg', 'drn-b', 'gs-sg', 'RF'),
   seg('s-haps1-gsth', 'haps-01', 'gs-th', 'RF'),
-  seg('s-gsth-custh', 'gs-th', 'cus-th', 'RF'),
-  seg('s-gssg-cussg', 'gs-sg', 'cus-sg', 'RF'),
-  seg('s-gseu-cuseu', 'gs-eu', 'cus-eu', 'RF'),
+  seg('s-gsth-custh', 'gs-th', 'cus-th', 'FIBER'),
+  seg('s-gssg-cussg', 'gs-sg', 'cus-sg', 'FIBER'),
+  seg('s-gseu-cuseu', 'gs-eu', 'cus-eu', 'FIBER'),
   seg('s-sat3-haps3', 'sat-03', 'haps-03', 'FSO'),
   seg('s-sat4-gsus', 'sat-04', 'gs-us', 'OPTICAL'),
 ];
@@ -317,6 +328,18 @@ export function linkStates(profile: ScenarioProfile): LinkState[] {
             : 'No measurable impact',
     };
   });
+}
+
+/** Ordered segments (in route direction) for a given asset-id chain. */
+export function routeSegments(route: string[]): Segment[] {
+  const out: Segment[] = [];
+  for (let i = 0; i < route.length - 1; i++) {
+    const from = route[i]!;
+    const to = route[i + 1]!;
+    const found = SEGMENTS.find((s) => s.from === from && s.to === to);
+    if (found) out.push(found);
+  }
+  return out;
 }
 
 /** Convert lat/lon/altitude into a unit-sphere position (radius 1 = sea level). */
