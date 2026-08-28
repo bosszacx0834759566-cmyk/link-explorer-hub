@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   SCENARIOS,
   linkStates,
+  routeSegments,
+  type Segment,
   type LinkState,
   type ScenarioId,
   type ScenarioProfile,
@@ -57,6 +59,11 @@ export interface OloLinkState {
   profile: ScenarioProfile;
   telemetry: Telemetry;
   links: LinkState[];
+  /** ordered segments of the AI-selected primary route */
+  route: Segment[];
+  /** route that was just replaced by the AI (fades out in the scene) */
+  previousRoute: Segment[] | null;
+  rerouteSeq: number;
   missionTime: number;
   events: EventEntry[];
   panel: RailId | null;
@@ -80,6 +87,8 @@ export function useOloLink(): OloLinkState {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [aiProcessing, setAiProcessing] = useState(false);
   const [running, setRunning] = useState(true);
+  const [previousRoute, setPreviousRoute] = useState<Segment[] | null>(null);
+  const [rerouteSeq, setRerouteSeq] = useState(0);
   const [layers, setLayers] = useState({ weather: true, orbits: true, labels: true, routes: true });
   const [telemetry, setTelemetry] = useState<Telemetry>(SCENARIOS.clear.telemetry);
   const [events, setEvents] = useState<EventEntry[]>([
@@ -144,7 +153,10 @@ export function useOloLink(): OloLinkState {
       if (id === scenarioId) return;
       setAiProcessing(true);
       push('INFO', `Weather state change → ${SCENARIOS[id].name}`);
+      const outgoing = routeSegments(SCENARIOS[scenarioId].route);
       setTimeout(() => {
+        setPreviousRoute(outgoing);
+        setRerouteSeq((n) => n + 1);
         setScenarioId(id);
         setAiProcessing(false);
         push(
@@ -157,12 +169,23 @@ export function useOloLink(): OloLinkState {
   );
 
   const links = useMemo(() => linkStates(profile), [profile]);
+  const route = useMemo(() => routeSegments(profile.route), [profile]);
+
+  // clear the ghost of the replaced route once it has finished fading
+  useEffect(() => {
+    if (!previousRoute) return;
+    const t = setTimeout(() => setPreviousRoute(null), 3200);
+    return () => clearTimeout(t);
+  }, [previousRoute, rerouteSeq]);
 
   return {
     scenarioId,
     profile,
     telemetry,
     links,
+    route,
+    previousRoute,
+    rerouteSeq,
     missionTime,
     events,
     panel,
